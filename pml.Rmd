@@ -1,0 +1,108 @@
+---
+title: "Practical Machine Learning"
+output: html_document
+date: "Wednesday, August 19, 2015"
+---
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Based on the data recorded from several people using Activity Monitors, we will try to construct a machine learning algorithm to predict future outcomes on the test data. Wel will use a Random Forest Modeling, and got over 99% accuracy on our training set of 70% of the total data. All our submitted test cases were succesful.
+
+## Data Sources
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Data cleaning
+
+After we download the training and test data sets, we load them into R (training and testing data frames).
+
+```{r}
+#Load the data witout missing values
+training_data <- read.csv("pml-training.csv", na.strings=c("#DIV/0!"," ", "", "NA", "NAs", "NULL"))
+testing_data <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!"," ", "", "NA", "NAs", "NULL"))
+
+# Cleaning the data sets
+NAs <- apply(training_data,2,function(x) {sum(is.na(x))}) 
+cleanTrain <- training_data[,which(NAs == 0)]
+cleanTest <- testing_data[,which(NAs == 0)]
+```
+
+# Model preparation 
+In order to measure our model we partition our training set into two parts, we will use 70% of the data set for training the model and 30% for cross validation.
+
+```{r}
+library(caret)
+
+#we will use 70% of the data set for training the model and 30% for cross validation
+trainIndex <- createDataPartition(y = cleanTrain$classe, p=0.7,list=FALSE)
+trainSet <- cleanTrain[trainIndex,]
+crossValidationSet <- cleanTrain[-trainIndex,]
+
+# Removing variables that have time, or names in it, also new_window. Columns 1..6
+removeIndex <- as.integer(c(1,2,3,4,5,6))
+
+
+```
+
+## Preparation for Cross-Validation
+```{r}
+trainSet <- trainSet[,-removeIndex]
+testSet <- cleanTest[,-removeIndex]
+```
+
+## Prediction Models
+
+We will be using Random Forest based on the first part of our training set. 
+
+
+```{r}
+#preparing the prediction models (random forest)
+mytrControl = trainControl(method = "cv", number = 4)
+modelFit <- train(trainSet$classe ~.,data = trainSet, method="rf", trControl = mytrControl)
+
+modelFit
+```
+
+## Error Estimation
+
+We will estimate errors by comparing predictions towards the real classe values of the second part of training set.
+Error probability and number of correct predictions are displayed below:
+
+
+```{r}
+#claculating the error estimation
+predicted <- predict(modelFit, crossValidationSet)
+SampleError <- sum(predicted == crossValidationSet$classe)/nrow(crossValidationSet)
+
+head(predicted)
+
+SampleError
+```
+
+
+## Answers
+
+To submit the answers, we will use the provided fuction, which will create 20 text files (covering all test cases) containing the output prediction letterfor each case (one prediction letter per file)
+
+```{r}
+
+answers <- predict(modelFit, testSet)
+
+# provided fuction to be used to write files
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+# call the write files function using our answers
+pml_write_files(answers)
+```
